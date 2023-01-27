@@ -1,0 +1,345 @@
+---
+title: "R functions for hospital profiling"
+author: "© IQTIG 2018"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    includes:
+      in_header: header.html
+abstract: |
+  This document describes version `r packageVersion("IQTIGpvci")` of the
+  R package `IQTIGpvci`.
+  This package provides statistical helper functions for hospital
+  profiling based on statistical hypothesis testing.  The package is part of the
+  scientific work in statistical methodology at the Federal Institute for
+  Quality Assurance and Transparency in Healthcare (IQTIG).  Moreover, the
+  package increases transparency about the methods used in the plan. QI
+  procedure for German hospital profiling.  In particular, it provides
+  implementations of the functions `compute_rate_pvalue()` and
+  `compute_oe_pvalue()` mentioned in the plan. QI directive (G-BA 2016), which
+  perform computations of exact binomial and Poisson tests using mid-p-values.
+  For official details about the plan. QI procedure (in German), see the
+  directive (G-BA 2016) and the plan. QI final development report
+  [IQTIG -@Bericht].
+vignette: > 
+  %\VignetteIndexEntry{R functions for hospital profiling}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+references:
+- id: Bericht
+  title: Planungsrelevante Qualitätsindikatoren - Abschlussbericht zur Auswahl und Umsetzung
+  language: german
+  author:
+  - family: IQTIG
+  type: book
+  issued:
+    year: 2016
+  URL: https://iqtig.org/downloads/berichte/2016/IQTIG_Planungsrelevante-Qualitaetsindikatoren_Abschlussbericht.pdf
+- id: Methodenpapier
+  title: Methodische Grundlagen V1.0
+  language: german
+  author:
+    family: IQTIG
+  issued:
+    year: 2017
+    month: September
+  URL: https://iqtig.org/downloads/berichte/2017/IQTIG_Methodische-Grundlagen-V1.0.pdf
+- id: Richtlinie
+  title: Richtlinie zu planungsrelevanten Qualitätsindikatoren gemäß § 136 Absatz 1 SGB V i. V. m. § 136c Absatz 1 und Absatz 2 SGB V
+  publisher: Gemeinsamer Bundesausschuss
+  address: Berlin
+  language: german
+  type: legislation
+  issued:
+    year: 2016
+  URL: https://www.g-ba.de/informationen/richtlinien/91/
+- id: QSKH-Richtlinie
+  title: Richtlinie gemäß § 136 Abs. 1 SGB V i. V. m. § 135a SGB V über Maßnahmen der Qualitätssicherung für nach § 108 SGB V zugelassene Krankenhäuser 
+  publisher: Gemeinsamer Bundesausschuss
+  address: Berlin
+  language: german
+  type: legislation
+  issued:
+    year: 2017
+  URL: https://www.g-ba.de/informationen/richtlinien/38/
+- id: IQTIG_org
+  title: IQTIG - Planungsrelevante Qualitätsindikatoren
+  language: german
+  issued:
+    year: 2017
+  author:
+  - family: IQTIG
+  URL: https://iqtig.org/qs-instrumente/planungsrelevante-qualitaetsindikatoren/
+  type: webpage
+- id: Q-Bericht
+  title: Qualitätsreport 2016
+  language: german
+  author:
+  - family: IQTIG
+  address: Berlin
+  type: book
+  issued:
+    year: 2017
+  URL: https://iqtig.org/downloads/ergebnisse/qualitaetsreport/IQTIG_Qualitaetsreport-2016.pdf
+- id: BerryArmitage95:midp
+  title: "Mid-$p$ confidence intervals: A brief review"
+  author:
+  - family: Berry
+    given: G.
+  - family: Armitage
+    given: P.
+  language: English
+  type: article-journal
+  container-title: The Statistician
+  volume: 44
+  issue: 4
+  pages: 417-423
+  issued:
+    year: 1995
+- id: keiding_clayton2014
+  title: "Standardization and Control for Confounding in Observational Studies: A Historical Perspective"
+  author:
+  - family: Keiding
+    given: Niels
+  - family: Clayton
+    given: David
+  language: English
+  type: article-journal
+  container-title: Statistical Science
+  volume: 29
+  number: 4
+  pages: 529-558
+  issued:
+    year: 2014
+- id: Poisson1837
+  title: Recherches sur la Probabilité des jugements en matière criminelle et en matière civile
+  language: French
+  type: book
+  author:
+    family: Poisson
+    given: Siméon Denis
+  issued:
+    year: 1837
+  publisher: Bachelier (Paris)
+nocite: |
+  @Richtlinie, @Bericht, @QSKH-Richtlinie
+---
+
+### Disclaimer
+
+The directive that governs the plan. QI project may be amended and modified each year.  For current information on the project, we refer to the websites of the Federal Joint Committee (https://www.g-ba.de) and the IQTIG (https://www.iqtig.org).  The examples in this document are based on the directive that was published in 2016 and that applies to data collected in 2017.
+Note that p-values computed using the package may deviate slightly from the
+p-values used in official reports due to, for example, numerical reasons.
+
+Please note the [license information](#license) at the end of the document.
+
+# Rate indicators
+
+Rate indicators count the proportion of events of interest among a set of cases, where each case usually refers to a treatment of a patient, such as a medical operation.  For example, the plan. QI directive (G-BA 2016) contains an indicator that counts how often a paediatrician is present at all premature births at a given hospital.  For each hospital, the proportion (or rate) $o/n$ is computed for each year, where
+$$
+\begin{aligned}
+  o &= \text{number of premature births with paediatrician present}, \\
+  n &= \text{number of all premature births}.
+\end{aligned}
+$$
+The reference range for this indicator is the interval [90%, 100%].  If the rate for a given hospital lies below 90%, the hospital becomes the focus of an investigation according to the QSKH directive (G-BA 2017) with the goal to determine whether and how the treatment quality can be improved.
+
+However, a hospital result that lies outside of the reference range can sometimes be explained by stochastic fluctuations.  The basic assumption is that the observed number of events of interest, $o$, is the outcome of a random variable $O$ with binomial distribution $\operatorname{Bin}(n, \pi)$, where $n$ is the known number of cases and where $\pi$ is the hospital specific underlying probability that a single case leads to an event of interest. This underlying probability is a measure for the quality of the treatment in the hospital.  In this context, the rate $o/n$ is interpreted as a point estimate for $\pi$.
+
+To take stochastic fluctuations into account when making inference about the underlying $\pi$ and, hence, making inference about the treatment quality in the given hospital based on the observed rate $o/n$, one can apply a hypothesis test on the binomial parameter $\pi$.
+If one assumes that the stochastic fluctuations are outside of the hospital's responsitbility, one can formulate the test such that the null hypothesis is that $\pi$ lies within the reference range, while the alternative hypothesis is that $\pi$ lies outside.  Thus, in the example above, one would conduct an exact binomial test with hypotheses:
+$$
+  H_0: \pi \ge 0.9
+  \quad\text{vs.}\quad
+  H_1: \pi < 0.9.
+$$
+
+The decision between these two alternatives can be taken based on the exact p-value for the test.  The plan. QI directive uses the mid-p-variant of the p-value.  The mid-p-value is smaller and less conservative than the p-value itself [see @BerryArmitage95:midp].  It differs from the classical exact p-value by assigning a weight of 1/2 to the observed value.  For example, when $H_0$ is of the form $\pi\ge t$ (as in the paediatrician example above), the mid-p-value is defined as
+$$
+  \operatorname{midp} = \sum_{i=0}^{o-1} P(O = i) + \frac12 P(O = o) = P(O < o) + \frac12 P(O = o),
+$$
+where the probabilities are computed under the null hypothesis.  To be precise, the boundary case of the null hypothesis is used.  Thus, if the null hypothesis is $H_0:\pi\ge t$, then the probabilities $P(O=i)$ are computed under the assumption that the distribution of $O$ is $\operatorname{Bin}(n, t)$.
+In plan. QI, the mid-p-value is then compared to the selected significance level of 0.05, i.e. the hospital is classified as a performance outlier if $\operatorname{midp}\le 0.05$.  For such a performance outlier, stochastic fluctuations are not a likely explanation of a poor indicator result.  In Germany, such a hospital becomes the focus of an investigation according to the plan. QI directive.
+
+Stochastic fluctuations can also be taken into account by constructing confidence intervals for $\pi$ around the point estimate $o/n$.  While the above hypothesis test is one-sided, it is convenient to compute two-sided confidence intervals that illustrate the magnitude of the stochastic uncertainty about $\pi$ in both directions.
+When the confidence interval is obtained by inverting the above described test procedure, the following duality holds:
+The mid-p-value of the one-sided test is less than $\alpha$ if and only if the corresponding two-sided confidence interval with confidence-level $1-2\alpha$ does not intersect the reference range [^pvalues-vs-cis].  In particular, in the paediatrician example above, the hospital is classified as a performance outlier if the upper bound of its two-sided confidence interval (with confidence level 0.9) lies below the threshold 90%.
+
+We refer to the plan. QI final development report [IQTIG -@Bericht] for further details.
+
+## Examples
+
+The function `compute_rate_pvalue()` computes (mid)p-values for rates.  Note that the default value for the parameter `midp` to this function is `TRUE`.
+
+Any hospital with a result within the reference range has a mid-p-value of greater than 0.05.  For example, for a hospital with 18 premature births where the paediatrician was present in 17 among these births, the mid-p-value is greater than 0.05:
+```{r}
+library(IQTIGpvci)
+compute_rate_pvalue(o = 17, n = 18, t = 0.90, alternative = "less")
+```
+On the other hand, if a hospital's empirical rate $o/n$ lies outside of the reference range, then the mid-p-value may be on both sides of the threshold 0.05.  A rate that is closer to the reference range leads to larger mid-p-values (if $n$ is fixed).  For example:
+```{r}
+compute_rate_pvalue(o = 13, n = 18, t = 0.90, alternative = "less")
+compute_rate_pvalue(o = 14, n = 18, t = 0.90, alternative = "less")
+```
+That is, a hospital with 18 premature births has a mid-p-value larger than 0.05 whenever the paediatrician is present during at least 14 of these premature births.  The following code verifies this in short:
+```{r}
+os <- 0:18
+pvalues <- compute_rate_pvalue(o = os, n = 18, t = 0.90, alternative = "less")
+min(os[pvalues > 0.05])
+```
+
+For larger hospitals, the stochastic fluctuations of the rate $O/n$ are smaller (under the null hypothesis).
+Thus, a larger number of cases $n$ leads to smaller mid-p-values, when the value of $o/n$ is fixed and lies outside of the reference range.
+For example, a hospital with 36 premature births and the same rate of $14/18 = `r 14/18`$ (that is, the paediatrician is present during 28 premature births) has a mid-p-value less than 0.05:
+```{r}
+compute_rate_pvalue(o = 28, n = 36, t = 0.90, alternative = "less")
+```
+
+Two-sided onfidence intervals for rates can be computed using the function `compute_rate_ci()`.  Note that the default value for the parameter `conf.level` is `0.9`, corresponding to the inversion of two one-sided tests, each with significance level 0.05.
+The default value for the parameter `midp` is `TRUE`.
+The following command computes the two-sided confidence intervals corresponding to the above mid-p-values:
+```{r}
+compute_rate_ci(o = c(13, 14, 17, 28), n = c(18, 18, 18, 36), conf.level = 0.9)
+```
+Only the second and third confidence intervals in the above intersect the reference range [90%, 100%].  The upper limits of the first and fourth confidence intervals are below 90%.
+
+# Risk-adjusted indicators
+
+The rate indicator in the paediatrician example of the last section is an example of a *process indicator*, that is, an indicator that depends on the processes by which patient care is provided in a given hospital.
+Another important class of indicators are *outcome indicators*, which focus on treatment outcomes.
+However, the outcome of a treatment not only depends on the quality of the treatment, but also on characteristics of the patient undergoing the treatment.  Therefore, when comparing hospital performances, one needs to take into account that there are systematic differences in the characteristics of patients that are treated at different hospitals^[Controlling for patient characteristics may also be necessary for some process indicators, whenever the recommended procedure depends on such characteristics.] [cf. Chapter 13 in @Methodenpapier].
+Such confounding case characteristics are called *risk factors*, and incorporating these risk factors in the statistical analysis of hospital results is called *risk adjustment*.  One commonly applied risk adjustment procedure is *indirect standardization* [for a review see @keiding_clayton2014], which will be described in the following.
+
+Denote by $n$ the total number of cases (of a specific kind) at a given hospital and by $o$ the number of events of interest among these cases.
+In indirect standardization, one wants to compare $o$ with the hypothetical outcome if the same cases had been treated in a different hospital that serves as a reference.  Usually, the reference hospital is counterfactual and represents an aggregation of data on treatment outcomes and other characteristics of reference cases collected from several existing hospitals, e.g. all relevant cases that have been treated in German hospitals during a given time period (e.g. a calendar year).  Thus, one can ask, what would have been the outcome if the cases from the specific hospital under study had been treated in a counterfactual standard German hospital.
+
+Using the reference cases, one estimates a probability $e_{j}$ of an event of interest for the $j$th case of the hospital under study, assuming a treatment in the reference hospital.  For example, $e_j$ may be obtained from logistic regression, where the risk factors are the explanatory variables.
+The sum $e = \sum_{j=1}^n e_{j}$ is called the *expected number of events of interest*.
+From $o$ and $e$, one computes the fraction $o/e$, which is called the *standardized morbidity ratio* (SMR).
+Values of the SMR that are larger than one indicate that there have been more events of interest in the given hospital than expected, while values below one indicate that the number of events of interest is smaller than expected.
+
+For example, the plan. QI directive (G-BA 2016) contains an indicator that counts organ injuries during laparoscopic gynaecological operations:
+$$
+\begin{aligned}
+  o &= \text{observed number of organ injuries during laparoscopic gynaecological operations} \\
+  e &= \text{expected number of organ injuries during laparoscopic gynaecological operations}.
+\end{aligned}
+$$
+The probability $e_j$ is a logistic function of a linear predictor containing the age, the ASA classification and information about previous operations of the patient as well as details about the conducted operation.  The coefficients of the logistic regression are published on the IQTIG website [-@IQTIG_org].
+The reference range for the SMR for this organ injury indicator in 2017 is the interval [0, 4.18].  If the SMR for a given hospital lies above 4.18, the hospital becomes the focus of an investigation according to the QSKH directive (G-BA 2017) with the goal to determine whether and how the treatment quality can be improved.
+
+Stochastic fluctuations can be taken into account in a similar way as in the previous section.  The underlying stochastic model is that the observed number of events of interest, $o$, is the outcome of a random variable $O$, which is the sum $O = \sum_{j=1}^{n}O_{j}$ of independent Bernoulli random variables with individual parameters $P(O_j = 1) = \pi_j$, $j=1,\dots,n$, where $\pi_j$ is the hospital specific underlying probability that a treatment with the same risk factors as the $j$th treatment leads to an event of interest.  The distribution of $O$ is called the *Poisson binomial distribution* or *generalized binomial distribution* [@Poisson1837].  In the case of small risks $\pi_j$, the distribution can be approximated by the Poisson distribution $\operatorname{Poi}(\lambda\cdot e)$, where
+$$
+  \lambda = \frac{1}{e}\sum_{j=1}^n\pi_j
+  = \frac{\sum_{j=1}^n\pi_j}{\sum_{j=1}^n e_j}
+$$
+is the sum of the case-specific probabilities $\pi_j$ divided by $e$.
+For example, in Germany, organ injuries occur during around 0.7&nbsp;% of all laparoscopic gynaecological operations [@Q-Bericht], and so the Poisson approximation is justified in this case.
+
+If the treatment at the given hospital is approximately as in the reference hospital (and if all risk factors have appropriately been taken into account), then each $\pi_j$ should be close to $e_j$, and so $\lambda$ should be close to one.  Therefore, $\lambda$ is a measure for the quality of the treatment in the hospital.
+The observed value $o$ of $O$ is a point estimate for $\lambda\cdot e$, and thus the SMR $o/e$ is a point estimate for $\lambda$.
+
+To take stochastic fluctuations into account when making inference about $\lambda$ and, hence, making inference about the treatment quality in the given hospital based on the observed SMR $o/e$, one can apply a hypothesis test.  In analogy to the case of a rate indicator, the test is formulated such that the null hypothesis is that $\lambda$ lies within the reference range, while the alternative hypothesis is that $\lambda$ lies outside.  Thus, in the example above, one would conduct a Poisson test with hypotheses:
+$$
+  H_0: \lambda \le 4.18
+  \quad\text{vs.}\quad
+  H_1: \lambda > 4.18.
+$$
+The decision between these two alternatives can be taken based on the p-value for the exact statistical test or its mid-p-variant.
+The mid-p-values are computed using the same formula as in the case of a rate indicator, but now under the assumption that $O$ is $\operatorname{Poi}(e\cdot 4.18)$-distributed.  Similarly, confidence intervals are easily obtained under the Poisson-approximation.  The duality between p-values and confidence intervals continues to hold.
+
+We refer to the plan. QI final development report [IQTIG -@Bericht] for further details.
+
+## Examples
+
+The function `compute_oe_pvalue()` computes (mid)p-values for SMRs under the assumption that the Poisson-approximation is adequate.  Note that the default value for the parameter `midp` to this function is `TRUE`.
+
+Any hospital with an SMR in the reference range has a mid-p-value larger than 0.05.  For example, if the value of $e$ is 1.5 for a given hospital and if there are three organ injuries, the mid-p-value is larger than 0.05:
+```{r}
+compute_oe_pvalue(o = 5, e = 1.5, t_smr = 4.18, alternative = "greater")
+```
+On the other hand, if a hospital's SMR lies outside of the reference range, then the mid-p-value may be on both sides of the threshold 0.05.  An SMR that is closer to the reference range leads to larger mid-p-values (if $e$ is fixed).  For example:
+```{r}
+compute_oe_pvalue(o = 10, e = 1.5, t_smr = 4.18, alternative = "greater")
+compute_oe_pvalue(o = 11, e = 1.5, t_smr = 4.18, alternative = "greater")
+```
+That is, a hospital with 1.5 expected organ injuries has a mid-p-value larger than 0.05 whenever the observed number of organ injuries is at most 10, corresponding to an SMR of $10/1.5 = `r 10/1.5`$.  The following code verifies this in short:
+```{r}
+o <- 1L
+repeat {
+  pvalue <- compute_oe_pvalue(o, e = 1.5, t_smr = 4.18, alternative = "greater")
+  if (pvalue <= 0.05) break else o <- o + 1L
+}
+message("Smallest 'o' with mid-p-value <= 0.05: ", o)
+```
+
+For hospitals with larger values of $e$, the stochastic fluctuations of $O/e$ are smaller (under the null hypothesis).  Thus, a larger value of $e$ leads to smaller mid-p-values, when the SMR is fixed and lies outside of the reference range.  For example, a hospital with 3.0 expected organ injuries and the same SMR of $`r 10/1.5`$ as above (that is, with 20 observed organ injuries) has a mid-p-value less than 0.05.
+```{r}
+compute_oe_pvalue(o = 20, e = 3.0, t_smr = 4.18, alternative = "greater")
+```
+
+Two-sided onfidence intervals for SMRs can be computed using the function `compute_oe_ci()`.  Note that the default value for the parameter `conf.level` is `0.9`, corresponding to the inversion of two one-sided tests, each with significance level 0.05.  The default value for the parameter `midp` is `TRUE`.  The following command computes the two-sided 90%-confidence intervals corresponding to the above mid-p-values:
+```{r}
+compute_oe_ci(o = c(5, 10, 11, 20), e = c(1.5, 1.5, 1.5, 3.0), conf.level = 0.9)
+```
+Only the first and second confidence interval intersects the reference range [0, 4.18].  The lower bounds of the third and fourth intervals lie above the threshold value 4.18.
+
+# Discussion
+
+This R package provides functionality to compute (mid)p-values of exact binomial and exact Poisson tests.
+In the test procedures presented so far, the null hypothesis is that the treatment quality of the hospital is in order.
+The hypotheses are formulated in such a way that hospitals with indicator results outside of the reference range are not classified as performance outliers as long as the deviation of the indicator result from the reference range is so small that it can plausibly be explained by stochastic fluctuations.
+This formulation is reasonable in the plan. QI procedure: As hospitals with low treatment quality face stark consequences, the statistical evidence for low treatment quality has to be evaluated carefully.
+
+Of course, stochastic fluctuations can work both ways and can lead to a worse or a better indicator result (i.e. the observed rate $o/n$ may lie above or below the underlying rate $\pi$, and the observed SMR may lie above or below the underlying parameter $\lambda$).
+Thus, as always in hypothesis testing, it is possible to formulate the hypothesis test in the converse way.  Then the null hypothesis is that the hospital's treatment quality lies outside of the reference range, and the test can serve to identify hospitals with a good indicator result for which it is plausible to assume that this result is due to a high treatment quality, as opposed to stochastic fluctuations.
+Such a testing procedure makes sense, for example, when the goal is to identify hospitals with particular high treatment quality.
+
+For these alternative tests, after formulating the hypotheses in the right way, the same functions `compute_rate_pvalue()`/`compute_oe_pvalue()` can be used to compute (mid)p-values.
+
+# Appendix
+
+## License
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but without any warranty; without even the implied warranty of merchantability or fitness for a particular purpose.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program.  If not, see https://www.gnu.org/licenses/.
+
+## Implementation details
+
+### p-value functions
+
+The implementation of the p-value functions [`compute_rate_pvalue()`](../html/compute_rate_pvalue.html) and [`compute_oe_pvalue()`](../html/compute_oe_pvalue.html) is based on the distribution functions of the binomial and the Poisson distribution, available in package `stats` (see documentation of `stats::dbinom()` and `stats::dpois()`).  Thus, the precision of the p-value functions is essentially given by the precision of the implementations of the corresponding distribution functions in `stats`.
+
+As an example, consider the case of `o = 1` observed events among `n = 2` cases when computing a rate indicator with a reference range of either [0%, 5%] or [95%, 100%].  In both cases, the mid-p-value is precisely 0.05, which is essentially confirmed by the function `compute_rate_pvalue`:
+```{r example0.05}
+(pvalues <- compute_rate_pvalue(1, 2, t = c(0.05, 0.95),
+                                alternative = c("greater", "less"),
+                                midp = TRUE))
+```
+However, a direct comparison with the threshold value 0.05 gives a conflicting answer:
+```{r le0.05}
+pvalues <= 0.05
+```
+The reason lies in a small numerical imprecision:
+```{r difference0.05}
+pvalues - 0.05
+```
+Therefore, when comparing with a fixed threshold (such as 0.05), one has to be careful and take numerical precision into account.
+
+### Confidence interval functions
+
+The confidence interval functions `compute_rate_ci()` and `compute_oe_ci()` numerically solve the defining equations of the confidence interval: They use `stats::uniroot()` to compute the values of the parameter (rate or SMR) for which the corresponding p-values are (1-`conf.level`)/2.  The precision of the confidence interval functions is limited by the precision of the p-value functions and the precision of the numerical search.
+
+[^pvalues-vs-cis]: However, the numerical precision is lower for the computed confidence intervals than for the mid-p-values.  Thus, in close cases, the mid-p-value should be consulted.
+
+### General considerations
+
+The main goal of the implementation is to be correct and easy to understand.
+Secondary goals are usability and robustness.
+All functions are vectorized in most arguments.
+All input parameters are validated within the functions.  In order to have more meaningful error messages, custom functions are used instead of the simple `stopifnot()`.  The same funcionality could be obtained from the package `assertthat`, which is not used, though, in order to minimize the number of package dependencies.
+
+# References

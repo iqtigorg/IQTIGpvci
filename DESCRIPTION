@@ -1,0 +1,37 @@
+Package: IQTIGpvci
+Title: R Functions for Hospital Profiling
+Version: 1.0.0
+Authors@R: c(person("IQTIG", role = c("aut", "cph")),
+             person("IQTIG Verfahrenssupport",
+                    email = "verfahrenssupport@iqtig.org", role = "cre"))
+Maintainer: IQTIG Verfahrenssupport <verfahrenssupport@iqtig.org>
+Copyright: IQTIG 2018
+Date: 2018-02-28
+Description: Statistical classifiers and helper functions
+    as they are used for example in the plan. QI procedure for German hospital
+    profiling.  The package serves as an illustrative implementation in order to
+    increase transparency about the statistical methods used in plan. QI.  For
+    official details about the plan. QI procedure (in German), see the directive
+    (available at <https://www.g-ba.de/informationen/richtlinien/91/>)
+    and the final development report by the IQTIG (available at
+    <https://iqtig.org/qs-instrumente/planungsrelevante-qualitaetsindikatoren/>).
+    The directive that governs the plan. QI project may be amended
+    and modified each year.  For current information on the project, we refer to
+    the homepages of the Federal Joint Committee (<https://www.g-ba.de>) and the
+    IQTIG (<https://www.iqtig.org>).
+URL: https://www.iqtig.org/das-iqtig/grundlagen/biometrische-methoden/
+Depends:
+    R (>= 3.3.0)
+License: GPL-3 | file LICENSE
+Encoding: UTF-8
+ByteCompile: true
+LazyData: true
+Imports:
+    stats
+Suggests:
+    exactci (>= 1.3-3),
+    testthat (>= 2.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+RoxygenNote: 6.0.1
